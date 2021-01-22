@@ -1378,6 +1378,31 @@ public class QueueControlTest extends ManagementTestBase {
       clientConsumer.close();
    }
 
+   @Test
+   public void testDivertMovedMessage() throws Exception {
+      final SimpleString testQueue = new SimpleString("testQueue");
+      final SimpleString forwardingQueue = new SimpleString("forwardingAddress");
+
+
+      session.createQueue(new QueueConfiguration(forwardingQueue).setDurable(durable));
+      session.createQueue(new QueueConfiguration(testQueue).setDurable(durable));
+
+      DivertConfiguration divert = new DivertConfiguration().setName("local-divert")
+              .setRoutingName("some-name").setAddress(testQueue.toString())
+              .setForwardingAddress(forwardingQueue.toString()).setExclusive(false);
+      server.deployDivert(divert);
+
+      ClientProducer producer = session.createProducer(testQueue.toString());
+      producer.send(createTextMessage(session, "Test message"));
+
+      QueueControl queueControl = createManagementControl(forwardingQueue, forwardingQueue, RoutingType.MULTICAST);
+      assertMessageMetrics(queueControl, 1, durable);
+      final long messageID = getFirstMessageId(queueControl);
+      queueControl.moveMessage(messageID, testQueue.toString());
+      
+      assertMessageMetrics(queueControl, 1, durable);
+   }
+
    /**
     * Test retry multiple messages from  DLQ to original queue.
     */
